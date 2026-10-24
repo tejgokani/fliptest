@@ -1,5 +1,7 @@
 # fliptest
 
+[![ci](https://github.com/tejgokani/fliptest/actions/workflows/ci.yml/badge.svg)](https://github.com/tejgokani/fliptest/actions/workflows/ci.yml)
+
 **Catch changes that only pass because the tests changed.**
 
 Coding agents are told to "make the tests pass." Sometimes they fix the code. Sometimes they edit the expected value, delete the failing case, or add a `skip`. Read the diff closely and you'll see it. Read it at 2 a.m. and you probably won't.
@@ -54,8 +56,10 @@ fliptest is the behavioral version. It never parses your test code. It uses the 
 Requires Python ≥ 3.11 and git. It has no runtime dependencies.
 
 ```bash
-pipx install git+https://github.com/tejgokani/fliptest
+pipx install git+https://github.com/tejgokani/fliptest      # or: pip install git+https://github.com/tejgokani/fliptest
 ```
+
+(It isn't on PyPI yet.)
 
 Or run it from a checkout without installing:
 
@@ -190,7 +194,7 @@ fliptest runs **your** test command, in copies of **your** repo. That's the same
 - **Harness files aren't reverted.** In `old_tests`, the head's `package.json`/`pyproject.toml` stays in place, because they also carry dependencies. Edits to them are reported for review instead.
 - **Dependencies are shared.** The old code runs against the current `node_modules`/`.venv`, so a change that bumps dependencies may make old-code runs fail for unrelated reasons.
 - Tests that hard-code the absolute repo path, need git metadata inside the snapshot, or live in submodules may not run in a snapshot.
-- Tested on macOS. Linux should work (it uses only POSIX process groups), but Windows is not supported.
+- macOS and Linux are covered: the suite runs locally on macOS and in CI on ubuntu + macOS, Python 3.11–3.14. Windows is not supported.
 - Language-neutral by design, but only verified so far on Python (pytest), JavaScript (mocha) and Go.
 
 ## Roadmap

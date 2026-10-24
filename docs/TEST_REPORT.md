@@ -69,10 +69,12 @@ The wheel contains only `fliptest/*.py`, the license, and metadata.
 
 ## CI
 
-`.github/workflows/ci.yml` covers ubuntu + macOS × Python 3.11–3.14, ruff, pytest, plus a wheel-build + clean-venv demo job. The YAML was parsed locally with PyYAML. It has **not run on GitHub yet**, so its status is NOT RUN until the repository is pushed (see STATUS.md).
+The first hosted run after the push was on 2026-10-25, against commit 69a598c. **It passed: all 9 jobs.** That's ubuntu-latest and macos-latest × Python 3.11, 3.12, 3.13, 3.14, plus `package`, which builds the wheel, installs it into a clean venv and runs `examples/demo.sh`, asserting GOALPOST_MOVED.
+
+I also checked the install path the README documents: `pip install git+https://github.com/tejgokani/fliptest` into a fresh Python 3.13 venv, then `fliptest --version`, which printed `fliptest 0.1.0`. `pipx` isn't installed on this machine, so the pipx variant wasn't run.
 
 ## Known gaps in testing
 
-- Linux and Windows are untested locally. Linux is covered by CI once pushed. Windows is unsupported.
+- Linux has been tested only in CI, not locally. Windows is unsupported.
 - jest, vitest, cargo nextest, and gradle JUnit recipes in the README are documented runner flags. They weren't tested here.
 - There is no fuzzing of JUnit input beyond the malformed and DTD cases.

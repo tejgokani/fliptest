@@ -18,7 +18,8 @@ Updated 2026-10-25.
 | Codex / Gemini runs | BLOCKED (Codex blocked by local permission policy) / NOT STARTED |
 | Clean install from wheel | VERIFIED (py3.12 venv) |
 | Docs, CI config, templates, launch package | COMPLETE |
-| Hosted CI run | Pending the push. See the final report |
+| Hosted CI run | VERIFIED: 9/9 jobs green on GitHub Actions |
+| Public repo | COMPLETE: https://github.com/tejgokani/fliptest |
 | PyPI publication | NOT STARTED, deliberately. Needs the maintainer's PyPI account; install from git works meanwhile |
 
 ## Next command
