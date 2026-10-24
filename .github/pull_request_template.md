@@ -1,0 +1,4 @@
+- [ ] `python -m pytest -q` passes
+- [ ] `ruff check src tests` passes
+- [ ] Bug fixes include a scenario test that fails without the fix
+- [ ] README updated if behavior or flags changed

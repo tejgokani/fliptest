@@ -326,3 +326,15 @@ def test_run_dependent_test_ids_do_not_cause_findings(repo):
 
 def test_root_test_js_is_a_test():
     assert classify.is_test("test.js") and classify.is_test("tests.py")
+
+
+def test_concurrent_and_repeated_runs_agree(repo):
+    (repo / "calc.py").write_text(CALC_BROKEN)
+    (repo / "test_calc.py").write_text((repo / "test_calc.py").read_text().replace("== 5", "== 6"))
+    env = dict(os.environ, PYTHONPATH=str(SRC), NO_COLOR="1")
+    args = [PY, "-m", "fliptest", "-C", str(repo), "--cmd", PYTEST_CMD, "--junit", "report.xml", "--json"]
+    procs = [subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, text=True)
+             for _ in range(3)]
+    docs = [json.loads(p.communicate(timeout=300)[0]) for p in procs]
+    summaries = {json.dumps([(f["code"], f["items"]) for f in d["findings"]]) for d in docs}
+    assert len(summaries) == 1 and all(d["verdict"] == "error" for d in docs)
