@@ -173,3 +173,23 @@ def test_text_report(repo):
     assert "GOALPOST_MOVED" in proc.stdout
     assert "verdict: FAIL" in proc.stdout
     assert "\x1b[" not in proc.stdout  # NO_COLOR respected
+
+
+def test_allow_downgrades_reviewed_finding(repo):
+    (repo / "calc.py").write_text(CALC_V1_BROKEN)
+    (repo / "test_calc.py").write_text((repo / "test_calc.py").read_text().replace("== 5", "== 6"))
+    proc, doc = check_json(repo, "--allow", "goalpost_moved")
+    assert proc.returncode == 0
+    moved = next(f for f in doc["findings"] if f["code"] == "GOALPOST_MOVED")
+    assert moved["severity"] == "info" and moved["message"].endswith("[allowed]")
+
+
+def test_base_failing_bugfix_is_not_a_warning(repo):
+    (repo / "test_calc.py").write_text((repo / "test_calc.py").read_text()
+                                       + "\n\ndef test_div_zero():\n    assert div(1, 0) is None\n")
+    git(repo, "commit", "-qam", "failing test for bug")
+    (repo / "calc.py").write_text(CALC_V1.replace("    return a / b", "    return None if b == 0 else a / b"))
+    proc, doc = check_json(repo)
+    assert proc.returncode == 0 and doc["verdict"] == "ok", doc["findings"]
+    fixed = next(f for f in doc["findings"] if f["code"] == "FIXED")
+    assert fixed["items"] == ["test_calc::test_div_zero"]

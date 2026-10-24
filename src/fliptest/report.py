@@ -98,10 +98,11 @@ def render_text(out: Outcome, test_cmd: str, stream=sys.stdout, verbose: bool = 
     for fd in out.findings:
         tag = {"error": st.red("ERROR"), "warn": st.yellow("WARN "), "info": st.dim("info ")}[fd.severity]
         lines.append(f"  {tag} {fd.code}: {fd.message}")
-        for item in fd.items[:MAX_ITEMS]:
+        cap = MAX_ITEMS if fd.severity != "info" or verbose else 3
+        for item in fd.items[:cap]:
             lines.append(f"          - {item}")
-        if len(fd.items) > MAX_ITEMS:
-            lines.append(st.dim(f"          ... {len(fd.items) - MAX_ITEMS} more (use --json)"))
+        if len(fd.items) > cap:
+            lines.append(st.dim(f"          ... {len(fd.items) - cap} more (use --json)"))
     if verbose or out.worst == "error":
         for name in ("head", "old_tests"):
             res = out.runs.get(name)

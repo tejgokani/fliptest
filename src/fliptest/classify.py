@@ -10,7 +10,7 @@ from pathlib import PurePosixPath
 # basename.
 DEFAULT_TEST_PATTERNS = [
     # python
-    "test_*.py", "*_test.py", "tests/**", "test/**", "conftest.py",
+    "test_*.py", "*_test.py", "tests/**", "test/**", "conftest.py", "test.*", "tests.*",
     # js / ts
     "*.test.*", "*.spec.*", "__tests__/**", "__snapshots__/**", "*.snap",
     # go, rust, ruby, java/kotlin, php, elixir, c#

@@ -23,7 +23,7 @@ detect anything?). Your repository is never modified.
 
 COMMANDS = ("check", "plan")
 # Options that consume the following argv token as their value.
-VALUE_OPTS = {"-C", "--base", "--head", "--cmd", "--test-pattern", "--junit", "--timeout", "--link"}
+VALUE_OPTS = {"-C", "--base", "--head", "--cmd", "--test-pattern", "--junit", "--timeout", "--link", "--allow"}
 
 
 def build_parser(command: str) -> argparse.ArgumentParser:
@@ -69,6 +69,8 @@ def _check_opts(sp: argparse.ArgumentParser) -> None:
     sp.add_argument("--skip-base", action="store_true", help="skip the old-code/old-tests control run")
     sp.add_argument("--json", action="store_true", help="machine-readable output on stdout")
     sp.add_argument("--strict", action="store_true", help="exit 1 on warnings too")
+    sp.add_argument("--allow", action="append", default=[], metavar="CODE",
+                    help="downgrade a finding code (e.g. GOALPOST_MOVED) to info after review (repeatable)")
     sp.add_argument("--keep", action="store_true", help="keep snapshot directories and logs")
     sp.add_argument("-q", "--quiet", action="store_true", help="no progress output")
     sp.add_argument("-v", "--verbose", action="store_true", help="show failing output tails")
@@ -161,6 +163,12 @@ def _run(args) -> int:
                                  "no differences between base and head")])
     else:
         outcome = engine.execute(plan, cfg, keep=args.keep, progress=progress)
+
+    allowed = {c.strip().upper() for c in args.allow}
+    for fd in outcome.findings:
+        if fd.code in allowed and fd.severity != "info":
+            fd.severity = "info"
+            fd.message += " [allowed]"
 
     if args.json:
         print(report.to_json(outcome, cfg.test_cmd))

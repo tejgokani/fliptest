@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -21,6 +22,15 @@ from .config import Config
 from .runner import RunResult, run_command
 
 VARIANTS = ("head", "base", "old_tests", "new_tests")
+
+# Test ids that embed timestamps, long floats or big integers (Math.random(),
+# Date.now(), new Date().toISOString()) change between runs; matching them
+# across runs would produce false findings.
+_UNSTABLE_ID = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}|\d+\.\d{6,}|\d{10,}|0x[0-9a-f]{8,}", re.I)
+
+
+def _unstable(tid: str) -> bool:
+    return bool(_UNSTABLE_ID.search(tid))
 
 
 @dataclass
@@ -204,10 +214,14 @@ def judge(plan: Plan, runs: dict[str, RunResult]) -> list[Finding]:
         f.append(Finding("HEAD_FAILS", "error", "the test suite fails on the change itself"))
 
     if base is not None and not base.passed and base.exit_code is not None:
-        f.append(Finding(
-            "BASE_FAILS", "warn",
-            "the suite already failed before the change; cross-checks are less reliable",
-        ))
+        # Normal for bug-fix work. Per-test comparisons stay sound; exit-code
+        # goalpost checks degrade to GOALPOST_INCONCLUSIVE below.
+        f.append(Finding("BASE_FAILS", "info", "the suite already failed before the change"))
+        if base.tests and head.tests:
+            fixed = sorted(t for t, o in base.tests.items()
+                           if o in ("fail", "error") and head.tests.get(t) == "pass")
+            if fixed:
+                f.append(Finding("FIXED", "info", "tests that failed before and pass now", fixed))
 
     deleted = [c.path for c in plan.test_changes if c.status == "D"]
     if deleted:
@@ -237,8 +251,8 @@ def judge(plan: Plan, runs: dict[str, RunResult]) -> list[Finding]:
         if moved:
             f.append(Finding(
                 "GOALPOST_MOVED", "error",
-                "tests that passed before the change fail against the new code; "
-                "the change only passes because these tests were edited or removed",
+                "tests that passed before the change fail against the new code and pass only "
+                "in their edited form (or were removed); confirm the edits are intended",
                 moved,
             ))
         elif moved == [] and not old.passed and head.passed:
@@ -252,8 +266,8 @@ def judge(plan: Plan, runs: dict[str, RunResult]) -> list[Finding]:
             if base is None or base.passed:
                 f.append(Finding(
                     "GOALPOST_MOVED", "error",
-                    "the original test suite fails against the new code, but the "
-                    "edited suite passes; the change only passes because tests were edited",
+                    "the original test suite fails against the new code and only the "
+                    "edited suite passes; confirm the test edits are intended",
                 ))
             else:
                 f.append(Finding(
@@ -262,9 +276,21 @@ def judge(plan: Plan, runs: dict[str, RunResult]) -> list[Finding]:
                     "failed before the change",
                 ))
 
+    unstable = sorted({t for r in runs.values() if r.tests for t in r.tests if _unstable(t)})
+    if unstable:
+        f.append(Finding("UNSTABLE_TEST_IDS", "info",
+                         f"{len(unstable)} test id(s) embed run-dependent values and were not "
+                         "matched across runs", unstable))
+
     # --- tests that vanished or were skipped (needs per-test data) ----------
     if base is not None and base.tests and head.tests:
-        gone = sorted(t for t, o in base.tests.items() if o == "pass" and t not in head.tests)
+        gone = [t for t, o in base.tests.items()
+                if o == "pass" and t not in head.tests and not _unstable(t)]
+        if cross and old is not None and old.tests is not None:
+            # old_tests runs the base test files; an id missing there too was
+            # never stable (or failed to collect), not deleted by the change.
+            gone = [t for t in gone if t in old.tests]
+        gone = sorted(gone)
         if gone:
             f.append(Finding("TESTS_DISAPPEARED", "warn",
                              "tests that passed before no longer run at all", gone))
@@ -278,7 +304,8 @@ def judge(plan: Plan, runs: dict[str, RunResult]) -> list[Finding]:
     if cross and new is not None and new.exit_code is not None and not new.timed_out:
         if new.tests and head.tests:
             known = set(base.tests) if (base and base.tests) else set()
-            added = [t for t in head.tests if t not in known and head.tests[t] == "pass"]
+            added = [t for t in head.tests
+                     if t not in known and head.tests[t] == "pass" and not _unstable(t)]
             vacuous = sorted(t for t in added if new.tests.get(t) == "pass")
             # A test absent from a failing run usually could not be collected
             # (e.g. it imports a name the old code lacks): that counts as failing.
@@ -312,7 +339,11 @@ def _per_test_regressions(base: RunResult, old: RunResult) -> list[str] | None:
     """
     if base.tests is None or old.tests is None:
         return None
-    return sorted(
-        t for t, o in base.tests.items()
-        if o == "pass" and old.tests.get(t, "missing") in ("fail", "error", "missing")
-    )
+    regressed = [t for t, o in base.tests.items()
+                 if o == "pass" and not _unstable(t) and old.tests.get(t) in ("fail", "error")]
+    if not regressed and not old.passed:
+        # Nothing failed by name, but the run did fail: tests that silently
+        # stopped running (e.g. their module no longer imports) are the cause.
+        regressed = [t for t, o in base.tests.items()
+                     if o == "pass" and not _unstable(t) and t not in old.tests]
+    return sorted(regressed)
